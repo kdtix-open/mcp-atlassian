@@ -96,6 +96,7 @@ class ConfluencePage(ApiModel, TimestampMixin):
     attachments: list[ConfluenceAttachment] = Field(default_factory=list)
     url: str | None = None
     emoji: str | None = None  # Page title emoji (icon shown in navigation)
+    full_width: bool = False  # Whether the page uses full-width layout
 
     @property
     def page_content(self) -> str:
@@ -221,6 +222,9 @@ class ConfluencePage(ApiModel, TimestampMixin):
         # Extract emoji from kwargs if provided
         emoji = kwargs.get("emoji")
 
+        # Extract full_width from kwargs if provided
+        full_width = kwargs.get("full_width", False)
+
         return cls(
             id=str(data.get("id", CONFLUENCE_DEFAULT_ID)),
             title=data.get("title", EMPTY_STRING),
@@ -238,6 +242,7 @@ class ConfluencePage(ApiModel, TimestampMixin):
             attachments=attachments,
             url=url,
             emoji=emoji,
+            full_width=full_width,
         )
 
     def to_simplified_dict(self) -> dict[str, Any]:
@@ -283,5 +288,9 @@ class ConfluencePage(ApiModel, TimestampMixin):
         # Add emoji if available
         if self.emoji:
             result["emoji"] = self.emoji
+
+        # Add full_width if set
+        if self.full_width:
+            result["full_width"] = self.full_width
 
         return result

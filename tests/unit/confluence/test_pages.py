@@ -1617,3 +1617,253 @@ class TestPageEmojiOAuth:
 
             mock_v2_adapter.set_page_emoji.assert_called_once_with(page_id, None)
             assert result is True
+
+
+class TestPageFullWidth:
+    """Tests for page full-width layout functionality."""
+
+    @pytest.fixture
+    def pages_mixin(self, confluence_client):
+        """Create a PagesMixin instance for testing."""
+        with patch(
+            "mcp_atlassian.confluence.pages.ConfluenceClient.__init__"
+        ) as mock_init:
+            mock_init.return_value = None
+            mixin = PagesMixin()
+            mixin.confluence = confluence_client.confluence
+            mixin.config = confluence_client.config
+            mixin.preprocessor = confluence_client.preprocessor
+            return mixin
+
+    @pytest.fixture
+    def oauth_pages_mixin(self, oauth_confluence_client):
+        """Create a PagesMixin instance for OAuth testing."""
+        with patch(
+            "mcp_atlassian.confluence.pages.ConfluenceClient.__init__"
+        ) as mock_init:
+            mock_init.return_value = None
+            mixin = PagesMixin()
+            mixin.confluence = oauth_confluence_client.confluence
+            mixin.config = oauth_confluence_client.config
+            mixin.preprocessor = oauth_confluence_client.preprocessor
+            return mixin
+
+    def test_get_page_full_width_true(self, pages_mixin):
+        """Test getting full-width setting when page is full-width."""
+        page_id = "123456789"
+        pages_mixin.confluence.get_page_properties.return_value = {
+            "results": [
+                {"key": "content-appearance-published", "value": "full-width"},
+            ]
+        }
+
+        result = pages_mixin._get_page_full_width(page_id)
+
+        assert result is True
+        pages_mixin.confluence.get_page_properties.assert_called_once_with(page_id)
+
+    def test_get_page_full_width_false_default(self, pages_mixin):
+        """Test getting full-width setting when page uses default layout."""
+        page_id = "123456789"
+        pages_mixin.confluence.get_page_properties.return_value = {
+            "results": [
+                {"key": "content-appearance-published", "value": "default"},
+            ]
+        }
+
+        result = pages_mixin._get_page_full_width(page_id)
+
+        assert result is False
+
+    def test_get_page_full_width_no_property(self, pages_mixin):
+        """Test getting full-width setting when property is absent (default layout)."""
+        page_id = "123456789"
+        pages_mixin.confluence.get_page_properties.return_value = {"results": []}
+
+        result = pages_mixin._get_page_full_width(page_id)
+
+        assert result is False
+
+    def test_get_page_full_width_api_error(self, pages_mixin):
+        """Test getting full-width setting when API raises an error."""
+        page_id = "123456789"
+        pages_mixin.confluence.get_page_properties.side_effect = Exception("API error")
+
+        result = pages_mixin._get_page_full_width(page_id)
+
+        assert result is False
+
+    def test_set_page_full_width_enable(self, pages_mixin):
+        """Test enabling full-width layout via v1 API."""
+        page_id = "123456789"
+        pages_mixin.confluence.set_page_property.return_value = None
+
+        result = pages_mixin._set_page_full_width(page_id, full_width=True)
+
+        assert result is True
+        assert pages_mixin.confluence.set_page_property.call_count == 2
+        calls = pages_mixin.confluence.set_page_property.call_args_list
+        keys = [call[0][1]["key"] for call in calls]
+        values = [call[0][1]["value"] for call in calls]
+        assert "content-appearance-published" in keys
+        assert "content-appearance-draft" in keys
+        assert all(v == "full-width" for v in values)
+
+    def test_set_page_full_width_disable(self, pages_mixin):
+        """Test disabling full-width layout (setting to default) via v1 API."""
+        page_id = "123456789"
+        pages_mixin.confluence.set_page_property.return_value = None
+
+        result = pages_mixin._set_page_full_width(page_id, full_width=False)
+
+        assert result is True
+        assert pages_mixin.confluence.set_page_property.call_count == 2
+        calls = pages_mixin.confluence.set_page_property.call_args_list
+        values = [call[0][1]["value"] for call in calls]
+        assert all(v == "default" for v in values)
+
+    def test_create_page_with_full_width(self, pages_mixin):
+        """Test creating a page with full-width layout."""
+        space_key = "PROJ"
+        title = "Full Width Page"
+        body = "<p>Content</p>"
+
+        with patch.object(
+            pages_mixin,
+            "get_page_content",
+            return_value=ConfluencePage(
+                id="123456789",
+                title=title,
+                content="Content",
+                space={"key": space_key, "name": "Project"},
+                full_width=True,
+            ),
+        ), patch.object(
+            pages_mixin, "_set_page_full_width", return_value=True
+        ) as mock_set_full_width:
+            result = pages_mixin.create_page(
+                space_key, title, body, is_markdown=False, full_width=True
+            )
+
+            mock_set_full_width.assert_called_once_with("123456789", full_width=True)
+            assert isinstance(result, ConfluencePage)
+            assert result.full_width is True
+
+    def test_create_page_without_full_width(self, pages_mixin):
+        """Test creating a page without full-width (default) does not call setter."""
+        space_key = "PROJ"
+        title = "Standard Page"
+        body = "<p>Content</p>"
+
+        with patch.object(
+            pages_mixin,
+            "get_page_content",
+            return_value=ConfluencePage(
+                id="std_123",
+                title=title,
+                content="Content",
+                space={"key": space_key, "name": "Project"},
+            ),
+        ), patch.object(
+            pages_mixin, "_set_page_full_width"
+        ) as mock_set_full_width:
+            result = pages_mixin.create_page(
+                space_key, title, body, is_markdown=False, full_width=False
+            )
+
+            mock_set_full_width.assert_not_called()
+            assert isinstance(result, ConfluencePage)
+            assert result.full_width is False
+
+    def test_update_page_with_full_width(self, pages_mixin):
+        """Test updating a page and enabling full-width layout."""
+        page_id = "987654321"
+        title = "Updated Page"
+        body = "<p>Updated content</p>"
+
+        mock_document = ConfluencePage(
+            id=page_id,
+            title=title,
+            content="Updated content",
+            space={"key": "PROJ", "name": "Project"},
+            full_width=True,
+        )
+        with patch.object(pages_mixin, "get_page_content", return_value=mock_document):
+            with patch.object(
+                pages_mixin, "_set_page_full_width", return_value=True
+            ) as mock_set_full_width:
+                result = pages_mixin.update_page(
+                    page_id, title, body, is_markdown=False, full_width=True
+                )
+
+                mock_set_full_width.assert_called_once_with(page_id, full_width=True)
+                assert result.full_width is True
+
+    def test_update_page_full_width_none_no_change(self, pages_mixin):
+        """Test that update_page with full_width=None does not change layout."""
+        page_id = "987654321"
+        title = "Updated Page"
+        body = "<p>Updated content</p>"
+
+        mock_document = ConfluencePage(
+            id=page_id,
+            title=title,
+            content="Updated content",
+            space={"key": "PROJ", "name": "Project"},
+        )
+        with patch.object(pages_mixin, "get_page_content", return_value=mock_document):
+            with patch.object(
+                pages_mixin, "_set_page_full_width"
+            ) as mock_set_full_width:
+                pages_mixin.update_page(
+                    page_id, title, body, is_markdown=False, full_width=None
+                )
+
+                mock_set_full_width.assert_not_called()
+
+    def test_get_page_content_includes_full_width(self, pages_mixin):
+        """Test that get_page_content includes the full-width setting."""
+        page_id = "987654321"
+        pages_mixin.config.url = "https://example.atlassian.net/wiki"
+
+        with patch.object(
+            pages_mixin, "_get_page_full_width", return_value=True
+        ) as mock_get_full_width:
+            result = pages_mixin.get_page_content(page_id, convert_to_markdown=True)
+
+            mock_get_full_width.assert_called_once_with(page_id)
+            assert result.full_width is True
+
+    def test_get_page_full_width_oauth_uses_v2_api(self, oauth_pages_mixin):
+        """Test that OAuth authentication uses v2 API for getting full-width setting."""
+        page_id = "oauth_fw_123"
+
+        with patch(
+            "mcp_atlassian.confluence.pages.ConfluenceV2Adapter"
+        ) as mock_v2_adapter_class:
+            mock_v2_adapter = MagicMock()
+            mock_v2_adapter_class.return_value = mock_v2_adapter
+            mock_v2_adapter.get_page_full_width.return_value = True
+
+            result = oauth_pages_mixin._get_page_full_width(page_id)
+
+            mock_v2_adapter.get_page_full_width.assert_called_once_with(page_id)
+            assert result is True
+
+    def test_set_page_full_width_oauth_uses_v2_api(self, oauth_pages_mixin):
+        """Test that OAuth authentication uses v2 API for setting full-width layout."""
+        page_id = "oauth_set_fw_123"
+
+        with patch(
+            "mcp_atlassian.confluence.pages.ConfluenceV2Adapter"
+        ) as mock_v2_adapter_class:
+            mock_v2_adapter = MagicMock()
+            mock_v2_adapter_class.return_value = mock_v2_adapter
+            mock_v2_adapter.set_page_full_width.return_value = True
+
+            result = oauth_pages_mixin._set_page_full_width(page_id, full_width=True)
+
+            mock_v2_adapter.set_page_full_width.assert_called_once_with(
+                page_id, full_width=True
+            )
+            assert result is True

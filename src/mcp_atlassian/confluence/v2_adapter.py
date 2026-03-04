@@ -560,6 +560,80 @@ class ConfluenceV2Adapter:
             logger.warning(f"Error setting emoji for page '{page_id}': {e}")
             return False
 
+    def get_page_full_width(self, page_id: str) -> bool:
+        """Get the full-width layout setting for a page using v2 API.
+
+        The full-width layout is stored as a content property with key
+        'content-appearance-published'. A value of 'full-width' indicates
+        full-width layout; 'default' (or absent) indicates the standard layout.
+
+        Args:
+            page_id: The ID of the page
+
+        Returns:
+            True if the page uses full-width layout, False otherwise
+        """
+        try:
+            url = f"{self.base_url}/api/v2/pages/{page_id}/properties"
+            response = self.session.get(url)
+            response.raise_for_status()
+
+            data = response.json()
+            properties = data.get("results", [])
+
+            for prop in properties:
+                key = prop.get("key", "")
+                if key == "content-appearance-published":
+                    value = prop.get("value", "")
+                    return value == "full-width"
+
+            return False
+
+        except Exception as e:
+            logger.debug(f"Error getting full-width setting for page '{page_id}': {e}")
+            return False
+
+    def set_page_full_width(self, page_id: str, *, full_width: bool) -> bool:
+        """Set the full-width layout setting for a page using v2 API.
+
+        The full-width layout is stored as content properties.
+        Both 'content-appearance-published' and 'content-appearance-draft' are set
+        to ensure the layout applies in both view and edit modes.
+
+        Args:
+            page_id: The ID of the page
+            full_width: True to enable full-width layout, False for default layout
+
+        Returns:
+            True if the operation succeeded, False otherwise
+        """
+        try:
+            appearance = "full-width" if full_width else "default"
+
+            published_ok = self._set_page_property(
+                page_id, "content-appearance-published", appearance
+            )
+            draft_ok = self._set_page_property(
+                page_id, "content-appearance-draft", appearance
+            )
+
+            if not published_ok:
+                logger.warning(
+                    f"Failed to set content-appearance-published for page '{page_id}'"
+                )
+            if not draft_ok:
+                logger.warning(
+                    f"Failed to set content-appearance-draft for page '{page_id}'"
+                )
+
+            return published_ok and draft_ok
+
+        except Exception as e:
+            logger.warning(
+                f"Error setting full-width layout for page '{page_id}': {e}"
+            )
+            return False
+
     def _get_property(self, page_id: str, property_key: str) -> dict[str, Any] | None:
         """Get a specific content property by key.
 
