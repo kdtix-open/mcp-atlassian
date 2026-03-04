@@ -91,6 +91,9 @@ class PagesMixin(ConfluenceClient):
             # Fetch page emoji from content properties
             emoji = self._get_page_emoji(page_id)
 
+            # Fetch full-width layout setting from content properties
+            full_width = self._get_page_full_width(page_id)
+
             # Create and return the ConfluencePage model
             return ConfluencePage.from_api_response(
                 page,
@@ -101,6 +104,7 @@ class PagesMixin(ConfluenceClient):
                 content_format="storage" if not convert_to_markdown else "markdown",
                 is_cloud=self.config.is_cloud,
                 emoji=emoji,
+                full_width=full_width,
             )
         except HTTPError as http_err:
             if http_err.response is not None and http_err.response.status_code in [
@@ -289,6 +293,90 @@ class PagesMixin(ConfluenceClient):
             logger.warning(f"Error setting emoji for page {page_id}: {str(e)}")
             return False
 
+    def _get_page_full_width(self, page_id: str) -> bool:
+        """Get the full-width layout setting for a page from content properties.
+
+        The full-width layout is stored as a content property with key
+        'content-appearance-published'. A value of 'full-width' indicates
+        full-width layout; 'default' (or absent) indicates the standard layout.
+
+        Args:
+            page_id: The ID of the page
+
+        Returns:
+            True if the page uses full-width layout, False otherwise
+        """
+        try:
+            # Use v2 API for OAuth authentication
+            v2_adapter = self._v2_adapter
+            if v2_adapter:
+                return v2_adapter.get_page_full_width(page_id)
+
+            # For token/basic auth, use v1 API via atlassian library
+            properties = self.confluence.get_page_properties(page_id)
+            if not properties:
+                return False
+
+            results = properties.get("results", [])
+            for prop in results:
+                key = prop.get("key", "")
+                if key == "content-appearance-published":
+                    value = prop.get("value", "")
+                    return value == "full-width"
+
+            return False
+
+        except Exception as e:
+            logger.debug(f"Error fetching full-width setting for page {page_id}: {str(e)}")
+            return False
+
+    def _set_page_full_width(self, page_id: str, *, full_width: bool) -> bool:
+        """Set the full-width layout setting for a page.
+
+        The full-width layout is stored as content properties.
+        Both 'content-appearance-published' and 'content-appearance-draft' are set
+        to ensure the layout applies in both view and edit modes.
+
+        Args:
+            page_id: The ID of the page
+            full_width: True to enable full-width layout, False for default layout
+
+        Returns:
+            True if the operation succeeded, False otherwise
+        """
+        try:
+            # Use v2 API for OAuth authentication
+            v2_adapter = self._v2_adapter
+            if v2_adapter:
+                return v2_adapter.set_page_full_width(page_id, full_width=full_width)
+
+            # For token/basic auth, use v1 API via atlassian library
+            appearance = "full-width" if full_width else "default"
+
+            published_ok = self._set_single_property(
+                page_id, "content-appearance-published", appearance
+            )
+            draft_ok = self._set_single_property(
+                page_id, "content-appearance-draft", appearance
+            )
+
+            if not published_ok:
+                logger.warning(
+                    f"Failed to set content-appearance-published for page {page_id}"
+                )
+            if not draft_ok:
+                logger.warning(
+                    f"Failed to set content-appearance-draft for page {page_id}"
+                )
+
+            return published_ok and draft_ok
+
+        except Exception as e:
+            logger.warning(
+                f"Error setting full-width layout for page {page_id}: {str(e)}"
+            )
+            return False
+
     def get_page_by_title(
         self, space_key: str, title: str, *, convert_to_markdown: bool = True
     ) -> ConfluencePage | None:
@@ -435,6 +523,7 @@ class PagesMixin(ConfluenceClient):
         enable_heading_anchors: bool = False,
         content_representation: str | None = None,
         emoji: str | None = None,
+        full_width: bool = False,
     ) -> ConfluencePage:
         """
         Create a new page in a Confluence space.
@@ -448,6 +537,7 @@ class PagesMixin(ConfluenceClient):
             enable_heading_anchors: Whether to enable automatic heading anchor generation (default: False, keyword-only)
             content_representation: Content format when is_markdown=False ('wiki' or 'storage', keyword-only)
             emoji: Optional emoji character for the page title icon (keyword-only)
+            full_width: Whether to use full-width page layout (default: False, keyword-only)
 
         Returns:
             ConfluencePage model containing the new page's data
@@ -502,6 +592,10 @@ class PagesMixin(ConfluenceClient):
             if emoji:
                 self._set_page_emoji(page_id, emoji)
 
+            # Set full-width layout if requested
+            if full_width:
+                self._set_page_full_width(page_id, full_width=full_width)
+
             return self.get_page_content(page_id)
         except Exception as e:
             logger.error(
@@ -524,6 +618,7 @@ class PagesMixin(ConfluenceClient):
         enable_heading_anchors: bool = False,
         content_representation: str | None = None,
         emoji: str | None = None,
+        full_width: bool | None = None,
     ) -> ConfluencePage:
         """
         Update an existing page in Confluence.
@@ -539,6 +634,7 @@ class PagesMixin(ConfluenceClient):
             enable_heading_anchors: Whether to enable automatic heading anchor generation (default: False, keyword-only)
             content_representation: Content format when is_markdown=False ('wiki' or 'storage', keyword-only)
             emoji: Optional emoji character for the page title icon (keyword-only). Pass empty string to remove emoji.
+            full_width: Whether to use full-width page layout (keyword-only). None means no change.
 
         Returns:
             ConfluencePage model containing the updated page's data
@@ -598,6 +694,10 @@ class PagesMixin(ConfluenceClient):
                 # Empty string means remove emoji, otherwise set it
                 emoji_to_set = emoji if emoji else None
                 self._set_page_emoji(page_id, emoji_to_set)
+
+            # Set full-width layout if specified
+            if full_width is not None:
+                self._set_page_full_width(page_id, full_width=full_width)
 
             # After update, refresh the page data
             return self.get_page_content(page_id)

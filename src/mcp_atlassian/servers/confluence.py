@@ -475,6 +475,13 @@ async def create_page(
             default=None,
         ),
     ] = None,
+    full_width: Annotated[
+        bool,
+        Field(
+            description="(Optional) Whether to use full-width page layout. When True, the page will be displayed in full-width mode. Default is False (standard layout).",
+            default=False,
+        ),
+    ] = False,
 ) -> str:
     """Create a new Confluence page.
 
@@ -487,6 +494,7 @@ async def create_page(
         content_format: The format of the content ('markdown', 'wiki', or 'storage').
         enable_heading_anchors: Whether to enable heading anchors (markdown only).
         emoji: Optional page title emoji (icon shown in navigation).
+        full_width: Whether to use full-width page layout.
 
     Returns:
         JSON string representing the created page object.
@@ -521,6 +529,7 @@ async def create_page(
         else False,
         content_representation=content_representation,
         emoji=emoji,
+        full_width=full_width,
     )
     result = page.to_simplified_dict()
     return json.dumps(
@@ -577,6 +586,13 @@ async def update_page(
             default=None,
         ),
     ] = None,
+    full_width: Annotated[
+        bool | None,
+        Field(
+            description="(Optional) Whether to use full-width page layout. When True, enables full-width mode. When False, reverts to standard layout. When null/None (default), the current layout setting is unchanged.",
+            default=None,
+        ),
+    ] = None,
 ) -> str:
     """Update an existing Confluence page.
 
@@ -591,6 +607,7 @@ async def update_page(
         content_format: The format of the content ('markdown', 'wiki', or 'storage').
         enable_heading_anchors: Whether to enable heading anchors (markdown only).
         emoji: Optional page title emoji (icon shown in navigation).
+        full_width: Whether to use full-width page layout (None means no change).
 
     Returns:
         JSON string representing the updated page object.
@@ -627,6 +644,7 @@ async def update_page(
         else False,
         content_representation=content_representation,
         emoji=emoji,
+        full_width=full_width,
     )
     page_data = updated_page.to_simplified_dict()
     return json.dumps(
