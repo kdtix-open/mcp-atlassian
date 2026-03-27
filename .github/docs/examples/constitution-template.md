@@ -1,7 +1,7 @@
-﻿<!-- GITHUB COPILOT CUSTOM INSTRUCTIONS
-     This is the repository-wide Copilot instruction file.
-     Copy this file to .github/copilot-instructions.md in any adopting repo.
-     Replace [PROJECT_NAME] and [RATIFICATION_DATE] with project-specific values.
+<!-- GITHUB COPILOT CUSTOM INSTRUCTIONS — CONSTITUTION TEMPLATE
+     Copy .github/copilot-instructions.md to your repo and replace the placeholders:
+       [PROJECT_NAME]     — your project or team name
+       [RATIFICATION_DATE] — the date the team formally adopted this constitution
 -->
 
 <!-- AI AGENT INSTRUCTION — GUIDE LIBRARY DETECTION
@@ -28,7 +28,6 @@
        .github/docs/standards/code-quality-standards.md
        .github/docs/standards/testing-requirements.md
        .github/docs/standards/pre-commit-verification.md
-       .github/docs/standards/observability-and-logging.md
        .github/docs/examples/constitution-template.md
        .github/docs/examples/confluence-attachments-success-story.md
 
@@ -248,26 +247,8 @@ The guide library at `.github/docs/` is the authoritative source for detailed pr
 | Documentation & tracking | `.github/docs/processes/documentation-tracking-guide.md` |
 | UI/UX & accessibility testing | `.github/docs/processes/playwright-ui-ux-testing.md` |
 | Azure AI Agent patterns | `.github/docs/processes/azure-ai-agent-guide.md` |
-| Code & test quality | `.github/docs/standards/` (4 guides) |
-| Observability & logging | `.github/docs/standards/observability-and-logging.md` |
+| Code & test quality | `.github/docs/standards/` (3 guides) |
 | Real-world example | `.github/docs/examples/confluence-attachments-success-story.md` |
-
-### Agent Skills
-
-The `.github/skills/` directory provides specialized, self-contained skill packages consumed by Copilot Coding Agent, Codex, and compatible IDEs. Each skill delivers targeted knowledge, workflows, and tool integrations for a specific domain.
-
-| Skill | Domain |
-|---|---|
-| `aspnet-core` | ASP.NET Core API and application patterns |
-| `chatgpt-apps` | ChatGPT application development |
-| `cloudflare-deploy` | Cloudflare deployment workflows |
-
-**Skill tooling** (in `.github/skills/.system/`):
-
-- **`skill-creator/`** — Scaffolds new skills (`init_skill.py`, `generate_openai_yaml.py`, `quick_validate.py`)
-- **`skill-installer/`** — Installs skills from any GitHub repository (`install-skill-from-github.py`, `list-skills.py`)
-
-When a new repeatable, domain-specific capability is identified, a skill **SHOULD** be created using the skill-creator tooling so it can be reused across projects. Skills **MUST** be self-contained (single directory, no external runtime dependencies beyond the host agent).
 
 Amendments to this Constitution require: written justification for the change; team review and approval; and a migration plan for any existing code that would fall out of compliance.
 
